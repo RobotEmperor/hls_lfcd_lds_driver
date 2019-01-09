@@ -1,36 +1,36 @@
 /*******************************************************************************
-* Copyright (c) 2016, Hitachi-LG Data Storage
-* Copyright (c) 2017, ROBOTIS
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are met:
-*
-* * Redistributions of source code must retain the above copyright notice, this
-*   list of conditions and the following disclaimer.
-*
-* * Redistributions in binary form must reproduce the above copyright notice,
-*   this list of conditions and the following disclaimer in the documentation
-*   and/or other materials provided with the distribution.
-*
-* * Neither the name of the copyright holder nor the names of its
-*   contributors may be used to endorse or promote products derived from
-*   this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-* AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*******************************************************************************/
+ * Copyright (c) 2016, Hitachi-LG Data Storage
+ * Copyright (c) 2017, ROBOTIS
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ *
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ *
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *******************************************************************************/
 
- /* Authors: SP Kong, JH Yang */
- /* maintainer: Pyo */
+/* Authors: SP Kong, JH Yang */
+/* maintainer: Pyo */
 
 #include <ros/ros.h>
 #include <std_msgs/UInt16.h>
@@ -41,7 +41,7 @@
 namespace hls_lfcd_lds
 {
 LFCDLaser::LFCDLaser(const std::string& port, uint32_t baud_rate, boost::asio::io_service& io)
-  : port_(port), baud_rate_(baud_rate), shutting_down_(false), serial_(io, port_)
+: port_(port), baud_rate_(baud_rate), shutting_down_(false), serial_(io, port_)
 {
   serial_.set_option(boost::asio::serial_port_base::baud_rate(baud_rate_));
 
@@ -78,7 +78,7 @@ void LFCDLaser::poll(sensor_msgs::LaserScan::Ptr scan)
       // Now that entire start sequence has been found, read in the rest of the message
       got_scan = true;
       boost::asio::read(serial_,boost::asio::buffer(&raw_bytes[1], 41));
-      
+
       if(raw_bytes[1] >= 0xA0  && raw_bytes[1] <= 0xDB)
       {
         int degree_count_num = 0;
@@ -121,12 +121,14 @@ int main(int argc, char **argv)
   std::string port;
   int baud_rate;
   std::string frame_id;
+  int measurement_angle;
 
   std_msgs::UInt16 rpms;
 
   priv_nh.param("port", port, std::string("/dev/ttyUSB0"));
   priv_nh.param("baud_rate", baud_rate, 230400);
   priv_nh.param("frame_id", frame_id, std::string("laser"));
+  priv_nh.param("measurement_angle", measurement_angle, 360);
 
   boost::asio::io_service io;
 
@@ -137,6 +139,7 @@ int main(int argc, char **argv)
     ros::Publisher motor_pub = n.advertise<std_msgs::UInt16>("rpms",1000);
     sensor_msgs::LaserScan::Ptr scan(new sensor_msgs::LaserScan);
 
+
     scan->header.frame_id = frame_id;
     scan->angle_increment = (2.0*M_PI/360.0);
     scan->angle_min = 0.0;
@@ -146,11 +149,26 @@ int main(int argc, char **argv)
     scan->ranges.resize(360);
     scan->intensities.resize(360);
 
+
     while (ros::ok())
     {
       laser.poll(scan);
+
+      scan->angle_min = 0*2.0*M_PI/360;
+      scan->angle_max = measurement_angle*2*2.0*M_PI/360;
+
+      for(int distance_number = measurement_angle; distance_number < (360 - (measurement_angle)); distance_number ++)
+      {
+        scan->ranges[distance_number] = 0;
+      }
+
+
+
       scan->header.stamp = ros::Time::now();
       rpms.data=laser.rpms;
+
+
+
       laser_pub.publish(scan);
       motor_pub.publish(rpms);
     }
